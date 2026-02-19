@@ -66,19 +66,37 @@ class TemplateCommandService:
         self, template_input: str, available_templates: list[str]
     ) -> tuple[str | None, str | None]:
         """解析模板输入（支持模板名或序号）。"""
-        if not template_input:
+        normalized_input = (template_input or "").strip()
+
+        if not normalized_input:
             return None, "❌ 模板参数不能为空"
 
-        if template_input.isdigit():
-            index = int(template_input)
+        if normalized_input.isdigit():
+            index = int(normalized_input)
             if 1 <= index <= len(available_templates):
                 return available_templates[index - 1], None
             return (
                 None,
-                f"❌ 无效的序号 '{template_input}'，有效范围: 1-{len(available_templates)}",
+                f"❌ 无效的序号 '{normalized_input}'，有效范围: 1-{len(available_templates)}",
             )
 
-        return template_input, None
+        # 兼容大小写输入（例如 /设置模板 Simple），并避免大小写冲突吞模板
+        lower_to_names: dict[str, list[str]] = {}
+        for name in available_templates:
+            key = name.lower()
+            lower_to_names.setdefault(key, []).append(name)
+
+        normalized_lower = normalized_input.lower()
+        has_case_collision = any(len(names) > 1 for names in lower_to_names.values())
+
+        if not has_case_collision:
+            if normalized_lower in lower_to_names:
+                return lower_to_names[normalized_lower][0], None
+        elif normalized_input in available_templates:
+            # 有冲突时只做区分大小写精确匹配，避免不可达模板
+            return normalized_input, None
+
+        return normalized_input, None
 
     def build_template_preview_nodes(
         self,
